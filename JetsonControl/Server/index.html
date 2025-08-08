@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Car control</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="Title">
+        <h1>Car Control Interface</h1>
+    </div>
+
+    <div class="control-mode">
+        <div class="mode-title">Control Mode:</div>
+        <div class="slider-container">
+            <span id="manual-label" class="slider-label slider-label-active">Manual</span>
+            <label class="switch">
+                <input type="checkbox" id="modeSlider" onchange="toggleMode()">
+                <span class="slider round"></span>
+            </label>
+            <span id="self-label" class="slider-label">Autonomous</span>
+        </div>
+    </div>
+
+
+    <div class="main-container">
+      <div class="main-horizontal">
+        <div class="left-col">
+          <div class="dpad-container">
+            <div class="dpad-title">Control car:</div>
+            <div class="dpad-subtitle">Specify speed (pwm) in the right side</div>
+            <table class="dpad-table">
+              <tr>
+                <td></td>
+                <td style="text-align: center;">
+                  <button onmousedown="sendForward()" onmouseup="sendBreak()" class="button dpad-btn">&#8593;<div class="dpad-label">Forward</div></button>
+                </td>
+                <td></td>
+              </tr>
+              <tr>
+                <td style="text-align: center;">
+                  <button onmousedown="sendTurnLeft()" onmouseup="sendBreak()" class="button dpad-btn">&#8592;<div class="dpad-label">Turn Left</div></button>
+                </td>
+                <td></td>
+                <td style="text-align: center;">
+                  <button onmousedown="sendTurnRight()" onmouseup="sendBreak()" class="button dpad-btn">&#8594;<div class="dpad-label">Turn Right</div></button>
+                </td>
+              </tr>
+              <tr>
+                <td></td>
+                <td style="text-align: center;">
+                  <button onmousedown="sendBackward()" onmouseup="sendBreak()" class="button dpad-btn">&#8595;<div class="dpad-label">Backward</div></button>
+                </td>
+                <td></td>
+              </tr>
+            </table>
+          </div>
+          <div class="camera-section camera-section-vertical">
+            <div class="camera-block camera-large camera-block-narrow">
+              <div class="camera-title camera-title-large">Car Camera</div>
+              <img src="/car_camera_feed" class="camera-img-narrow" />
+            </div>
+            <div class="camera-block camera-large camera-block-narrow">
+              <div class="camera-title camera-title-large">Arm Camera</div>
+              <img src="/arm_camera_feed" class="camera-img-narrow" />
+            </div>
+          </div>
+        </div>
+
+        <div class="main-controls-group" style="flex: 2; min-width: 350px; max-width: 600px;">
+          <!--<div class="main-controls-row">
+            <button onclick="sendStart()" class="button flex1">Start car</button>
+            <button onclick="stopRobot()" class="button flex1">Stop car</button>
+          </div>-->
+          <div class="main-controls-row">
+            <button onclick="sendEmergency()" class="button flex1">Enter EMERGENCY</button>
+            <button onclick="sendEndEmergency()" class="button flex1">End EMERGENCY</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="moveOneUp()" class="button flex1">Move actuator 1 UP</button>
+            <button onclick="moveTwoUp()" class="button flex1">Move actuator 2 UP</button>
+            <button onclick="moveThreeUp()" class="button flex1">Move actuator 3 UP</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="moveOneDown()" class="button flex1">Move actuator 1 DOWN</button>
+            <button onclick="moveTwoDown()" class="button flex1">Move actuator 2 DOWN</button>
+            <button onclick="moveThreeDown()" class="button flex1">Move actuator 3 DOWN</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="moveOne()" class="button flex1">Move actuator 1 (specify position)</button>
+            <button onclick="moveTwo()" class="button flex1">Move actuator 2 (specify position)</button>
+            <button onclick="moveThree()" class="button flex1">Move actuator 3 (specify position)</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="rotateArmLeft()" class="button flex1">Rotate arm left (specify no. of steps)</button>
+            <button onclick="rotateArmRight()" class="button flex1">Rotate arm right (specify no. of steps)</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="goxyz()" class="button flex1">Go to X Y Z position (specify in the input fields)</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="rotateLeft()" class="button flex1">Rotate claw left</button>
+            <button onclick="rotateRight()" class="button flex1">Rotate claw right</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="clawOpen()" class="button flex1">Open claw</button>
+            <button onclick="clawClose()" class="button flex1">Close claw</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="initialPos()" class="button flex1">Reset arm position</button>
+            </div>
+        <div class="main-controls-row">
+            <button onclick="exit()" class="button flex1">EXIT</button>
+          </div>
+          <div class="main-controls-row">
+            <button onclick="returnCarToStart()" class="button flex1">Return car to starting position</button>
+          </div>
+        </div>
+
+        <div style="flex: 1; min-width: 260px; max-width: 340px;">
+          <div class="section-title">Parameters</div>
+          <div class="input-fields">
+            <label for="pwmValue">PWM</label>
+            <input type="number" id="pwm" name="pwm" min="0" max="255" value="0" class="input-pwm"> 
+            <label for="actuator1">Actuator 1 (min: 37, max: 790)</label>
+            <input type="number" id="actuator1" name="actuator1" min="37" max="790" value="37" class="input-actuator">
+            <label for="actuator2">Actuator 2 (min: 37, max: 952)</label>
+            <input type="number" id="actuator2" name="actuator2" min="37" max="952" value="37" class="input-actuator">
+            <label for="actuator3">Actuator 3 (min: 29, max: 957)</label>
+            <input type="number" id="actuator3" name="actuator3" min="29" max="957" value="29" class="input-actuator">
+            <label for="steps">Steps (to rotate arm)</label>
+            <input type="number" id="steps" name="steps" min="1" value="1" class="input-steps">
+            <label for="xpos">X Position</label>
+            <input type="number" id="xpos" name="xpos" value="0" class="input-x">
+            <label for="ypos">Y Position</label>
+            <input type="number" id="ypos" name="ypos" value="0" class="input-y">
+            <label for="zpos">Z Position</label>
+            <input type="number" id="zpos" name="zpos" value="0" class="input-z">
+          </div>
+        </div>
+      </div>
+    </div>
+</body>
+
+<script src="commands.js"></script>
+<script>
+function toggleMode() {
+    const slider = document.getElementById('modeSlider');
+    const manualLabel = document.getElementById('manual-label');
+    const selfLabel = document.getElementById('self-label');
+    if (slider.checked) {
+        autonomousMode();
+        manualLabel.classList.remove('slider-label-active');
+        selfLabel.classList.add('slider-label-active');
+    } else {
+        manualMode();
+        selfLabel.classList.remove('slider-label-active');
+        manualLabel.classList.add('slider-label-active');
+    }
+}
+window.onload = function() {
+    document.getElementById('modeSlider').checked = false;
+    document.getElementById('manual-label').classList.add('slider-label-active');
+    document.getElementById('self-label').classList.remove('slider-label-active');
+};
+</script>
+</html>
