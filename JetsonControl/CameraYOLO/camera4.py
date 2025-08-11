@@ -72,6 +72,26 @@ def main():
                                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
                                 confidence = box.conf[0].cpu().numpy()
                                 color = colors[class_id % len(colors)]
+
+                                # Calculeaza centrul imaginii si al sticlei
+                                img_h, img_w = display_frame.shape[:2]
+                                img_cx, img_cy = img_w // 2, img_h // 2
+                                box_cx = (x1 + x2) // 2
+                                box_cy = (y1 + y2) // 2
+                                threshold = 30
+                                move_x = box_cx - img_cx
+                                move_y = box_cy - img_cy
+                                if abs(move_x) > threshold:
+                                    if move_x < 0:
+                                        print("Muta camera la STANGA")
+                                    else:
+                                        print("Muta camera la DREAPTA")
+                                if abs(move_y) > threshold:
+                                    if move_y < 0:
+                                        print("Muta camera in SUS")
+                                    else:
+                                        print("Muta camera in JOS")
+
                                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
                                 if show_confidence:
                                     label = f"{class_name}: {confidence:.2f}"
