@@ -38,34 +38,12 @@ def main():
     except Exception as e:
         print(f"Eroare la incarcarea modelului YOLO: {e}")
         return
-    gst_pipeline_hw = (
-        "v4l2src device=/dev/video0 ! "
-        "video/x-raw,width=640,height=480,framerate=30/1 ! "
-        "nvvidconv ! "
-        "video/x-raw(memory:NVMM) ! "
-        "nvvidconv ! "
-        "video/x-raw,format=BGRx ! "
-        "videoconvert ! "
-        "video/x-raw,format=BGR ! "
-        "appsink drop=1 max-buffers=1"
-    )
-    gst_pipeline_sw = (
-        "v4l2src device=/dev/video0 ! "
-        "video/x-raw,width=640,height=480,framerate=30/1 ! "
-        "videoconvert ! "
-        "video/x-raw,format=BGR ! "
-        "appsink drop=1 max-buffers=1"
-    )
-    print("Deschid camera cu GStreamer pipeline...")
-    print("Incerc pipeline hardware accelerated...")
-    cap = cv2.VideoCapture(gst_pipeline_hw, cv2.CAP_GSTREAMER)
+    print("Deschid camera cu OpenCV standard (fara GStreamer)...")
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Accelerarea hardware a esuat, incerc pipeline software...")
-        cap = cv2.VideoCapture(gst_pipeline_sw, cv2.CAP_GSTREAMER)
-        if not cap.isOpened():
-            print("Eroare: Nu pot deschide camera!")
-            print("Verifica daca /dev/video0 exista si este accesibil")
-            return
+        print("Eroare: Nu pot deschide camera cu OpenCV!")
+        print("Verifica daca camera este conectata si accesibila.")
+        return
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
     detection_enabled = True
@@ -86,10 +64,13 @@ def main():
                         boxes = result.boxes
                         if boxes is not None:
                             for box in boxes:
-                                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-                                confidence = box.conf[0].cpu().numpy()
                                 class_id = int(box.cls[0].cpu().numpy())
                                 class_name = model.names[class_id] if class_id < len(model.names) else f"Class_{class_id}"
+                                # Afiseaza doar sticle (bottle)
+                                if class_name.lower() != "bottle":
+                                    continue
+                                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+                                confidence = box.conf[0].cpu().numpy()
                                 color = colors[class_id % len(colors)]
                                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
                                 if show_confidence:
