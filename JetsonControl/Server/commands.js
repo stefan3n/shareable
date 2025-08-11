@@ -122,6 +122,12 @@ function initialPos()
     fetch("http://" + host + "/initialPos", {method: "POST"});
 }
 
+function goObject()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/goObject", {method: "POST"});
+}
+
 function rotateLeft()
 {
     var host = window.location.host;
@@ -201,4 +207,16 @@ function clawClose()
 {
     var host = window.location.host;
     fetch("http://" + host + "/clawClose", {method: "POST"});
+}
+
+function detectCar()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/detectCar", {method: "POST"});
+}
+
+function detectArm()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/detectArm", {method: "POST"});
 }
