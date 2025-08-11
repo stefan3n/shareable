@@ -45,13 +45,16 @@ void rotateClaw(int direction) {
 }
 
 // ------------------ CLASA: STEPPER ------------------------
-void moveStepperOneStep(int direction) {
-    // direction: 1 = one way, 0 = other way
+void moveStepperSteps(int direction, int steps) {
+    digitalWrite(ENASTEPPER, HIGH); // Enable stepper
     digitalWrite(DIR_STEPPER, direction ? HIGH : LOW);
-    digitalWrite(PUL_STEPPER, HIGH);
-    delayMicroseconds(500); // pulse width
-    digitalWrite(PUL_STEPPER, LOW);
-    delayMicroseconds(500); // pulse interval
+    for (int i = 0; i < steps; i++) {
+        digitalWrite(PUL_STEPPER, HIGH);
+        delayMicroseconds(500); // pulse width
+        digitalWrite(PUL_STEPPER, LOW);
+        delayMicroseconds(500); // pulse interval
+    }
+    digitalWrite(ENASTEPPER, LOW); // Disable stepper after move
 }
 
 // ------------------ CLASA: ACTUATOR ------------------------
@@ -214,11 +217,18 @@ void parseAndExecuteCommand(int actuator, int target, int &finalPos) {
             }
             break;
         case 6:
+            // target: 0 = stanga, 1 = dreapta, 10 = stanga 10 pasi, 11 = dreapta 10 pasi etc
             if (target == 0) {
-                moveStepperOneStep(0);
+                moveStepperSteps(0, 1); // 1 pas la stanga
                 finalPos = 0;
             } else if (target == 1) {
-                moveStepperOneStep(1);
+                moveStepperSteps(1, 1); // 1 pas la dreapta
+                finalPos = 1;
+            } else if (target == 10) {
+                moveStepperSteps(0, 10); // 10 pasi la stanga
+                finalPos = 0;
+            } else if (target == 11) {
+                moveStepperSteps(1, 10); // 10 pasi la dreapta
                 finalPos = 1;
             } else {
                 Serial.println("Unknown stepper command!");
@@ -232,7 +242,7 @@ void parseAndExecuteCommand(int actuator, int target, int &finalPos) {
             break;
         default:
             Serial.println("Unknown actuator!");
-            finalPos = -1;l
+            finalPos = -1;
             break;
     }
 }
@@ -248,12 +258,15 @@ void setupPins() {
     pinMode(ENA2, OUTPUT);
     pinMode(ENA3, OUTPUT);
     pinMode(ENASTEPPER, OUTPUT);
+    pinMode(DIR_STEPPER, OUTPUT);
+    pinMode(PUL_STEPPER, OUTPUT);
     pinMode(IN1_1, OUTPUT);
     pinMode(IN2_1, OUTPUT);
     pinMode(IN1_2, OUTPUT);
     pinMode(IN2_2, OUTPUT);
     pinMode(IN1_3, OUTPUT);
     pinMode(IN2_3, OUTPUT);
+    digitalWrite(ENASTEPPER, LOW);
 }
 
 void setupServos() {
@@ -359,7 +372,6 @@ void processSerialInput() {
 }
 
 void loop() {
-    digitalWrite(ENASTEPPER, LOW);
     processSerialInput();
     delay(20); // Debounce delay
 }
