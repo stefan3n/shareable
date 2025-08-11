@@ -71,6 +71,51 @@ function moveThree()
     fetch("http://" + host + "/moveThree/" + potentiometerValue, {method: "POST"});
 }
 
+function moveOneUp()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveOneUp/", {method: "POST"});
+}
+
+function moveTwoUp()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveTwoUp/", {method: "POST"});
+}
+
+function moveThreeUp()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveThreeUp/", {method: "POST"});
+}
+
+function moveOneDown()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveOneDown/", {method: "POST"});
+}
+
+function moveTwoDown()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveTwoDown/", {method: "POST"});
+}
+
+function moveThreeDown()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/moveThreeDown/", {method: "POST"});
+}
+
+function goxyz()
+{
+    var host = window.location.host;
+    var x = document.getElementById("xpos").value;
+    var y = document.getElementById("ypos").value;
+    var z = document.getElementById("zpos").value;
+    fetch("http://" + host + "/goxyz/" + x + "/" + y + "/" + z, {method: "POST"});
+}
+
 function initialPos()
 {
     var host = window.location.host;
@@ -87,6 +132,18 @@ function rotateRight()
 {
     var host = window.location.host;
     fetch("http://" + host + "/rotateRight", {method: "POST"});
+}
+
+function rotateArmLeft()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/rotateArmLeft", {method: "POST"});
+}
+
+function rotateArmRight()
+{
+    var host = window.location.host;
+    fetch("http://" + host + "/rotateArmRight", {method: "POST"});
 }
 
 function stopRobot()

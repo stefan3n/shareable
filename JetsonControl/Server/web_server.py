@@ -4,7 +4,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 import threading
 import atexit
-from camera_utils import generate_frames, cleanup
+from camera_utils import generate_frames, generate_yolo_frames, cleanup
 
 CAR_CAMERA_NAME = "usb-046d_0825_5AA55590-video-index0"
 ARM_CAMERA_NAME = "usb-046d_HD_Webcam_C525_02CCCB50-video-index0"
@@ -56,17 +56,47 @@ ros_thread.start()
 def index():
     return send_from_directory('.', 'index.html')
 
+
+# Toggle detection state for arm camera
+arm_detection_enabled = False
+
 @app.route('/car_camera_feed')
 def car_video_feed():
     print("[Flask] Serving car video feed")
     return Response(generate_frames(CAR_CAMERA_NAME), 
-                    mimetype='multipart/x-mixed-replace; boundary=frame') 
-    
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
 @app.route('/arm_camera_feed')
 def arm_video_feed():
-    print("[Flask] Serving arm video feed")
-    return Response(generate_frames(ARM_CAMERA_NAME),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    global arm_detection_enabled
+    print(f"[Flask] Serving arm video feed (detection={'ON' if arm_detection_enabled else 'OFF'})")
+    if arm_detection_enabled:
+        # Adnotare și pe frame-urile YOLO
+        def yolo_annotated_frames():
+            for frame in generate_yolo_frames(ARM_CAMERA_NAME):
+                # Decodare, adnotare, recodare
+                import cv2, numpy as np
+                img = cv2.imdecode(np.frombuffer(frame.split(b'\r\n\r\n',1)[1].split(b'\r\n')[0], np.uint8), cv2.IMREAD_COLOR)
+                if img is not None:
+                    label = "DETECTION: ON"
+                    color = (0, 200, 0)
+                    cv2.rectangle(img, (0,0), (220, 35), (0,0,0), -1)
+                    cv2.putText(img, label, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+                    _, enc = cv2.imencode('.jpg', img)
+                    frame = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + enc.tobytes() + b'\r\n'
+                yield frame
+        return Response(yolo_annotated_frames(),
+                        mimetype='multipart/x-mixed-replace; boundary=frame')
+    else:
+        return Response(generate_frames(ARM_CAMERA_NAME, detection_status=False),
+                        mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/detectArm', methods=['POST'])
+def toggle_arm_detection():
+    global arm_detection_enabled
+    arm_detection_enabled = not arm_detection_enabled
+    print(f"[Flask] Arm camera detection toggled to: {'ON' if arm_detection_enabled else 'OFF'}")
+    return {'status': 'OK', 'detection': arm_detection_enabled}
 
 @app.route('/<path:path>')  # Serve static files (CSS, JS, images)
 def static_files(path):
@@ -308,6 +338,15 @@ def catch_command_goxyz(x, y, z):
 def catch_command_initial_pos():
     try:
         msg = f"initialPos"
+        ros2_node.publish(msg, "arm_server_topic")
+    except Exception as e:
+        print(f"[Flask] ERROR at publish: {e}")
+    return {'status': 'OK'}
+
+@app.route('/goObject', methods=['POST'])
+def catch_command_go_object():
+    try:
+        msg = f"goObject"
         ros2_node.publish(msg, "arm_server_topic")
     except Exception as e:
         print(f"[Flask] ERROR at publish: {e}")
