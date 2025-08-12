@@ -6,8 +6,8 @@ import threading
 import atexit
 from camera_utils import generate_frames, generate_yolo_frames, cleanup
 
-CAR_CAMERA_NAME = "usb-046d_0825_5AA55590-video-index0"
-ARM_CAMERA_NAME = "usb-046d_HD_Webcam_C525_02CCCB50-video-index0"
+CAR_CAMERA_NAME = "usb-046d_0825_5AA55590-video-index0" # ID obtained with `ls -l /dev/v4l/by-id`
+ARM_CAMERA_NAME = "usb-046d_HD_Webcam_C525_02CCCB50-video-index0" # ID obtained with `ls -l /dev/v4l/by-id`
 
 app = Flask(__name__, static_folder='.')
 
@@ -40,8 +40,12 @@ class ROS2Publisher(Node):
 # Start rclpy and node in a background thread
 import threading
 rclpy.init()
+
+arm_detection_enabled = False # Detection is initially OFF
+
 ros2_node = ROS2Publisher()
 ros2_node.publish("manual", "control_mode_topic")  # Publish 'manual' at startup
+
 ros2_executor = rclpy.executors.SingleThreadedExecutor()
 ros2_executor.add_node(ros2_node)
 
@@ -56,10 +60,6 @@ ros_thread.start()
 def index():
     return send_from_directory('.', 'index.html')
 
-
-# Toggle detection state for arm camera
-arm_detection_enabled = False
-
 @app.route('/car_camera_feed')
 def car_video_feed():
     print("[Flask] Serving car video feed")
@@ -71,10 +71,10 @@ def arm_video_feed():
     global arm_detection_enabled
     print(f"[Flask] Serving arm video feed (detection={'ON' if arm_detection_enabled else 'OFF'})")
     if arm_detection_enabled:
-        # Adnotare și pe frame-urile YOLO
+        # Use YOLO for object detection on the arm camera feed
         def yolo_annotated_frames():
             for frame in generate_yolo_frames(ARM_CAMERA_NAME):
-                # Decodare, adnotare, recodare
+                # Decode, annotate, and re-encode
                 import cv2, numpy as np
                 img = cv2.imdecode(np.frombuffer(frame.split(b'\r\n\r\n',1)[1].split(b'\r\n')[0], np.uint8), cv2.IMREAD_COLOR)
                 if img is not None:

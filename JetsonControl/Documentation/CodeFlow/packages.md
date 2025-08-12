@@ -1,4 +1,4 @@
-# Code organization
+# **Code organization**
 
 To improve modularity and maintainability, we have divided the codebase into **three** distinct packages based on their functionality:
 

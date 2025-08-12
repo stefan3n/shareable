@@ -3,24 +3,22 @@ import cv2
 import numpy as np
 import time
 import os
-# YOLO imports
 try:
     from ultralytics import YOLO
 except ImportError:
     YOLO = None
 
-# Model global (lazy init)
 yolo_model = None
-YOLO_MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'CameraYOLO', 'yolov10b_trained.pt')
+YOLO_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'yolov8n.pt')
 
 def get_yolo_model():
     global yolo_model
     if yolo_model is not None:
         return yolo_model
     if YOLO is None:
-        raise ImportError("ultralytics.YOLO nu este instalat!")
+        raise ImportError("Ultralytics is not installed!")
     if not os.path.exists(YOLO_MODEL_PATH):
-        raise FileNotFoundError(f"Modelul YOLO nu a fost gasit la {YOLO_MODEL_PATH}")
+        raise FileNotFoundError(f"YOLO model not found at {YOLO_MODEL_PATH}")
     yolo_model = YOLO(YOLO_MODEL_PATH)
     return yolo_model
 
@@ -28,7 +26,7 @@ def get_yolo_model():
 class Camera:
     def __init__(self, camera_name):
         self.camera_name = camera_name
-        device_path = self.find_video_device_by_name(camera_name)  # Find the video device path
+        device_path = self.find_video_device_by_name(camera_name)  
         if not device_path:
             raise Exception(f"Camera with name '{camera_name}' not found.")
 
