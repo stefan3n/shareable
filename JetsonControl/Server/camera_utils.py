@@ -168,12 +168,29 @@ def generate_frames(camera_id, detection_status=None):
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 def generate_yolo_frames(camera_id, only_bottle=True, show_confidence=True):
-    """Frame generator for MJPEG streaming cu YOLO adnotari (doar bottle)"""
+    """Frame generator for MJPEG streaming cu YOLO adnotari (doar bottle) si optional label DETECTION: ON"""
+    import cv2
+    import numpy as np
     camera = get_camera(camera_id)
+    show_label = False
+    # Acceptă argumentul show_label dacă e transmis explicit (compatibil cu web_server.py)
+    import inspect
+    frame_args = inspect.getargvalues(inspect.currentframe()).locals
+    if 'show_label' in frame_args:
+        show_label = frame_args['show_label']
     while True:
         frame = camera.get_yolo_frame(only_bottle=only_bottle, show_confidence=show_confidence)
         if frame is None:
             break
+        if show_label:
+            img = cv2.imdecode(np.frombuffer(frame, np.uint8), cv2.IMREAD_COLOR)
+            if img is not None:
+                label = "DETECTION: ON"
+                color = (0, 200, 0)
+                cv2.rectangle(img, (0,0), (220, 35), (0,0,0), -1)
+                cv2.putText(img, label, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+                _, frame = cv2.imencode('.jpg', img)
+                frame = frame.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 

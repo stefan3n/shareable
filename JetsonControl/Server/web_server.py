@@ -71,21 +71,8 @@ def arm_video_feed():
     global arm_detection_enabled
     print(f"[Flask] Serving arm video feed (detection={'ON' if arm_detection_enabled else 'OFF'})")
     if arm_detection_enabled:
-        # Use YOLO for object detection on the arm camera feed
-        def yolo_annotated_frames():
-            for frame in generate_yolo_frames(ARM_CAMERA_NAME):
-                # Decode, annotate, and re-encode
-                import cv2, numpy as np
-                img = cv2.imdecode(np.frombuffer(frame.split(b'\r\n\r\n',1)[1].split(b'\r\n')[0], np.uint8), cv2.IMREAD_COLOR)
-                if img is not None:
-                    label = "DETECTION: ON"
-                    color = (0, 200, 0)
-                    cv2.rectangle(img, (0,0), (220, 35), (0,0,0), -1)
-                    cv2.putText(img, label, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-                    _, enc = cv2.imencode('.jpg', img)
-                    frame = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + enc.tobytes() + b'\r\n'
-                yield frame
-        return Response(yolo_annotated_frames(),
+        # Folosește direct generatorul cu YOLO și labelul DETECTION: ON va fi adăugat în camera_utils.py
+        return Response(generate_yolo_frames(ARM_CAMERA_NAME, show_label=True),
                         mimetype='multipart/x-mixed-replace; boundary=frame')
     else:
         return Response(generate_frames(ARM_CAMERA_NAME, detection_status=False),
