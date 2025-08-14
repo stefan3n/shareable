@@ -68,7 +68,7 @@ class ThreadedCamera:
         print(f"GStreamer Pipeline: {gst_pipeline}")
         
         self.cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
-        q
+        
         if not self.cap.isOpened():
             print("GStreamer not working, switching to standard OpenCV...")
             self.cap = cv2.VideoCapture(self.src)
@@ -291,16 +291,16 @@ def main():
                                 move_x = box_cx - img_cx
                                 move_y = box_cy - img_cy
 
-                                # ROS2 movement commands
-                                if abs(move_x) > threshold:
-                                    if move_x < 0:
-                                        # LEFT
-                                        arm_node.send_command('<6,0>')
-                                    else:
-                                        # RIGHT
-                                        arm_node.send_command('<6,1>')
-                                # (Optional: implement UP/DOWN if needed)
-
+                                # ROS2 movement commands doar pentru 'bottle'
+                                if class_name.lower() == "bottle":
+                                    if abs(move_x) > threshold:
+                                        if move_x < 0:
+                                            # LEFT
+                                            arm_node.send_command('<6,0>')
+                                        else:
+                                            # RIGHT
+                                            arm_node.send_command('<6,1>')
+                                    # (Optional: implement UP/DOWN if needed)
                                 # Draw bounding box
                                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
 

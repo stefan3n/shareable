@@ -24,6 +24,47 @@ class ArmControlNode(Node):
             'arm_command_topic',
             10
         )
+        self.arm_position_publisher = self.create_publisher(
+            String,
+            'arm_position_topic',
+            10
+        )
+        self.create_subscription(
+            String,
+            'arduino_response_topic',
+            self.arduino_response_callback,
+            10
+        )
+        # Send initial message to Arduino
+        init_msg = String()
+        init_msg.data = "99"
+        self.arm_command_publisher.publish(init_msg)
+        self.get_logger().info("Sent initial message '99' to Arduino.")
+    def arduino_response_callback(self, msg):
+        # Wait for response in the form <pot1,pot2,pot3>
+        data = msg.data.strip()
+        if not (data.startswith('<') and data.endswith('>')):
+            self.get_logger().warning(f"Invalid Arduino response format: {data}")
+            return
+        try:
+            pot_values = data[1:-1].split(',')
+            if len(pot_values) != 3:
+                self.get_logger().warning(f"Expected 3 potentiometer values, got: {pot_values}")
+                return
+            pot1 = int(pot_values[0])
+            pot2 = int(pot_values[1])
+            pot3 = int(pot_values[2])
+        except Exception as e:
+            self.get_logger().warning(f"Error parsing potentiometer values: {e}")
+            return
+
+        from forwardKinematicsXZ import potentiometer_values_to_angles, corrected_forward_kinematics
+        theta1, theta2, theta3 = potentiometer_values_to_angles(pot1, pot2, pot3)
+        _, (x, z) = corrected_forward_kinematics(theta1, theta2, theta3)
+        pos_msg = String()
+        pos_msg.data = f"{x:.2f},{z:.2f}"
+        self.arm_position_publisher.publish(pos_msg)
+        self.get_logger().info(f"Published arm position: X={x:.2f}, Z={z:.2f}")
 
     def control_mode_callback(self, msg):
         self.control_mode = msg.data

@@ -355,10 +355,24 @@ void processSerialInput() {
                 }
                 if (valid) {
                     int finalPos = 0;
-                    parseAndExecuteCommand(actuator, target, finalPos);
-                    if ((actuator >= 1 && actuator <= 6) || actuator == 11 || actuator == 12 || actuator == 21 || actuator == 22 || actuator == 31 || actuator == 32) {
-                        sendFeedback(actuator, finalPos);
-                    }
+                        if (actuator == 99) {
+                            // Trimite valorile celor 3 potentiometre
+                            int pot1 = getFeedback(FEEDBACK_PIN1);
+                            int pot2 = getFeedback(FEEDBACK_PIN2);
+                            int pot3 = getFeedback(FEEDBACK_PIN3);
+                            Serial.print("<");
+                            Serial.print(pot1);
+                            Serial.print(",");
+                            Serial.print(pot2);
+                            Serial.print(",");
+                            Serial.print(pot3);
+                            Serial.println(">");
+                        } else {
+                            parseAndExecuteCommand(actuator, target, finalPos);
+                            if ((actuator >= 1 && actuator <= 6) || actuator == 11 || actuator == 12 || actuator == 21 || actuator == 22 || actuator == 31 || actuator == 32) {
+                                sendFeedback(actuator, finalPos);
+                            }
+                        }
                 }
             }
         }
