@@ -1,4 +1,4 @@
-# Smart Car 2025 - Documentation
+# **Smart Car 2025 - Documentation**
 
 **1. [Introduction](Introduction/Introduction.md)** -  **project overview** and objectives.
 

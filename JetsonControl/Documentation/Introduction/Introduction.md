@@ -1,6 +1,6 @@
 ### [< back](../Home.md)
 
-# Introduction
+# **Introduction**
 
 The main goal of this project was to build a **fully autonomous** vehicle capable of **detecting** and **avoiding** obstacles. Using one or more cameras, the system **identifies** objects on the ground, which are then picked up by the robotic arm.
 

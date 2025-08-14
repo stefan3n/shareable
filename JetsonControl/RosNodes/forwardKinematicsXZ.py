@@ -15,7 +15,9 @@ Usage:
         print(f"Actuator 3: {pot_values['actuator3']}")
 """
 
+
 import numpy as np
+import math
 
 # Segment lengths in cm
 L1 = 49.5
@@ -117,44 +119,112 @@ def corrected_forward_kinematics(theta1_deg, theta2_deg, theta3_deg):
 def inverse_kinematics_search(target_x, target_z, theta1_min=75, theta1_max=135, 
                              theta2_min=70, theta2_max=97, theta3_min=90, theta3_max=154,
                              step=1):
-    """
-    Find the angles that best approximate the desired position (target_x, target_z)
-    through exhaustive search in the joint angle space.
 
-    Args:
-        target_x, target_z: desired position
-        theta1_min, theta1_max: limits for theta1 (degrees)
-        theta2_min, theta2_max: limits for theta2 (degrees)
-        theta3_min, theta3_max: limits for theta3 (degrees)
-        step: search step (degrees)
+    # Pregătește gridul de unghiuri
+    theta1_vals = np.arange(theta1_min, theta1_max + 1, step, dtype=np.float32)
+    theta2_vals = np.arange(theta2_min, theta2_max + 1, step, dtype=np.float32)
+    theta3_vals = np.arange(theta3_min, theta3_max + 1, step, dtype=np.float32)
 
-    Returns:
-        tuple: (best_theta1, best_theta2, best_theta3, achieved_x, achieved_z, min_distance)
-    """
-    best_distance = float('inf')
-    best_angles = None
-    best_position = None
-    
-    # Iterate through all combinations of angles
-    for theta1 in range(theta1_min, theta1_max + 1, step):
-        for theta2 in range(theta2_min, theta2_max + 1, step):
-            for theta3 in range(theta3_min, theta3_max + 1, step):
-                # Calculate end-effector position for these angles
-                _, (x, z) = corrected_forward_kinematics(theta1, theta2, theta3)
+    n1, n2, n3 = len(theta1_vals), len(theta2_vals), len(theta3_vals)
+    total = n1 * n2 * n3
 
-                # Calculate distance to desired position
-                distance = np.sqrt((x - target_x)**2 + (z - target_z)**2)
+    combos = np.zeros((total, 3), dtype=np.float32)
+    idx = 0
+    for i in range(n1):
+        for j in range(n2):
+            for k in range(n3):
+                combos[idx, 0] = theta1_vals[i]
+                combos[idx, 1] = theta2_vals[j]
+                combos[idx, 2] = theta3_vals[k]
+                idx += 1
 
-                # Check if this is the best solution found so far
-                if distance < best_distance:
-                    best_distance = distance
-                    best_angles = (theta1, theta2, theta3)
-                    best_position = (x, z)
-    
-    if best_angles is None:
-        return None
-    
-    return (*best_angles, *best_position, best_distance)
+    distances = np.zeros(total, dtype=np.float32)
+    xs = np.zeros(total, dtype=np.float32)
+    zs = np.zeros(total, dtype=np.float32)
+
+    try:
+        import pycuda.autoinit
+        import pycuda.driver as drv
+        import pycuda.gpuarray as gpuarray
+        from pycuda.compiler import SourceModule
+
+        kernel_code = """
+        __global__ void kinematics(float *combos, float target_x, float target_z, float *distances, float *xs, float *zs, float L1, float L2, float L3, int total) {
+            int i = blockIdx.x * blockDim.x + threadIdx.x;
+            if (i < total) {
+                float t1 = combos[3*i+0] * 0.01745329252f; // deg to rad
+                float t2 = combos[3*i+1] * 0.01745329252f;
+                float t3 = combos[3*i+2] * 0.01745329252f;
+                float j1 = t1;
+                float j2 = j1 + (3.14159265359f - t2);
+                float j3 = j2 + (3.14159265359f - t3);
+                float x1 = L1 * cosf(j1);
+                float z1 = L1 * sinf(j1);
+                float x2 = x1 + L2 * cosf(j2);
+                float z2 = z1 + L2 * sinf(j2);
+                float x3 = x2 + L3 * cosf(j3);
+                float z3 = z2 + L3 * sinf(j3);
+                xs[i] = x3;
+                zs[i] = z3;
+                float dx = x3 - target_x;
+                float dz = z3 - target_z;
+                distances[i] = sqrtf(dx*dx + dz*dz);
+            }
+        }
+        """
+        mod = SourceModule(kernel_code)
+        kinematics = mod.get_function("kinematics")
+
+        combos_gpu = gpuarray.to_gpu(combos.flatten())
+        distances_gpu = gpuarray.zeros(total, np.float32)
+        xs_gpu = gpuarray.zeros(total, np.float32)
+        zs_gpu = gpuarray.zeros(total, np.float32)
+
+        block_size = 256
+        grid_size = (total + block_size - 1) // block_size
+
+        kinematics(
+            combos_gpu,
+            np.float32(target_x),
+            np.float32(target_z),
+            distances_gpu,
+            xs_gpu,
+            zs_gpu,
+            np.float32(L1),
+            np.float32(L2),
+            np.float32(L3),
+            np.int32(total),
+            block=(block_size,1,1), grid=(grid_size,1)
+        )
+
+        distances = distances_gpu.get()
+        xs = xs_gpu.get()
+        zs = zs_gpu.get()
+
+    except Exception as e:
+        # Fallback CPU (NumPy vectorized)
+        t1 = np.radians(combos[:, 0])
+        t2 = np.radians(combos[:, 1])
+        t3 = np.radians(combos[:, 2])
+        j1 = t1
+        j2 = j1 + (np.pi - t2)
+        j3 = j2 + (np.pi - t3)
+        x1 = L1 * np.cos(j1)
+        z1 = L1 * np.sin(j1)
+        x2 = x1 + L2 * np.cos(j2)
+        z2 = z1 + L2 * np.sin(j2)
+        x3 = x2 + L3 * np.cos(j3)
+        z3 = z2 + L3 * np.sin(j3)
+        xs = x3
+        zs = z3
+        distances = np.sqrt((xs - target_x)**2 + (zs - target_z)**2)
+
+    min_idx = np.argmin(distances)
+    best_theta1, best_theta2, best_theta3 = combos[min_idx]
+    best_x = xs[min_idx]
+    best_z = zs[min_idx]
+    best_distance = distances[min_idx]
+    return (float(best_theta1), float(best_theta2), float(best_theta3), float(best_x), float(best_z), float(best_distance))
 
 def get_potentiometer_values_for_position(target_x, target_z, search_step=1):
     """

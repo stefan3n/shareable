@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
 YOLO Object Detection Camera Viewer with GStreamer Hardware Acceleration
-Optimizat pentru Jetson Orin Nano cu accelerare hardware
+Optimized for Jetson Orin Nano with hardware acceleration
 
 Usage:
     python3 camera4.py
 
 Requirements:
-    - OpenCV cu suport GStreamer: pip install opencv-python
+    - OpenCV with GStreamer support: pip install opencv-python
     - Ultralytics YOLO: pip install ultralytics
     - PyTorch: pip install torch torchvision
-    - Camera la /dev/video0
-    - Model YOLO: yolov8n.pt (sau yolov10n pentru nano)
-    - Jetson: suport hardware acceleration
+    - Camera at /dev/video0
+    - YOLO model: yolov8n.pt (or yolov10n for nano)
+    - Jetson: hardware acceleration support
 
-Controale:
-    - 'q' sau ESC pentru iesire
-    - 's' pentru a activa/dezactiva detectia
-    - 'r' pentru resetare pipeline
+Controls:
+    - 'q' or ESC to exit
+    - 's' to toggle detection
+    - 'r' to reset pipeline
 """
 
 import cv2
@@ -31,7 +31,7 @@ from ultralytics import YOLO
 import torch
 
 class ThreadedCamera:
-    """Clasa pentru captura video threadad cu optimizari Jetson"""
+    """Class for threaded video capture with Jetson optimizations"""
     
     def __init__(self, src=0, width=640, height=480, fps=30):
         self.src = src
@@ -43,8 +43,8 @@ class ThreadedCamera:
         self.cap = None
         
     def create_gstreamer_pipeline(self):
-        """Creeaza pipeline GStreamer optimizat pentru Jetson"""
-        # Pipeline pentru camera USB cu accelerare hardware
+        """Creates GStreamer pipeline optimized for Jetson"""
+        # Pipeline for USB camera with hardware acceleration
         pipeline = (
             f"v4l2src device=/dev/video{self.src} ! "
             f"video/x-raw,width={self.width},height={self.height},framerate={self.fps}/1,format=YUY2 ! "
@@ -55,17 +55,17 @@ class ThreadedCamera:
         return pipeline
         
     def start(self):
-        """Porneste captura video"""
-        print("Pornesc captura video cu GStreamer...")
+        """Starts video capture"""
+        print("Starting video capture with GStreamer...")
         
-        # Incearca primul cu GStreamer
+        # Try GStreamer first
         gst_pipeline = self.create_gstreamer_pipeline()
-        print(f"Pipeline GStreamer: {gst_pipeline}")
+        print(f"GStreamer Pipeline: {gst_pipeline}")
         
         self.cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
         
         if not self.cap.isOpened():
-            print("GStreamer nu functioneaza, trec la OpenCV standard...")
+            print("GStreamer not working, switching to standard OpenCV...")
             self.cap = cv2.VideoCapture(self.src)
             if self.cap.isOpened():
                 self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -73,42 +73,42 @@ class ThreadedCamera:
                 self.cap.set(cv2.CAP_PROP_FPS, self.fps)
         
         if not self.cap.isOpened():
-            raise RuntimeError("Nu pot deschide camera!")
+            raise RuntimeError("Cannot open camera!")
             
-        # Setari pentru performanta
+        # Performance settings
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
-        # Porneste thread-ul pentru captura
+        # Start capture thread
         self.thread = threading.Thread(target=self.update)
         self.thread.daemon = True
         self.thread.start()
         return self
         
     def update(self):
-        """Thread pentru citirea continua a frame-urilor"""
+        """Thread for continuous frame reading"""
         while not self.stopped:
             ret, frame = self.cap.read()
             if not ret:
                 continue
                 
-            # Pastreaza doar ultimele 2 frame-uri
+            # Keep only the latest 2 frames
             if not self.frame_queue.full():
                 self.frame_queue.put(frame)
             else:
                 try:
-                    self.frame_queue.get_nowait()  # Scoate frame-ul vechi
-                    self.frame_queue.put(frame)    # Pune frame-ul nou
+                    self.frame_queue.get_nowait()  # Remove old frame
+                    self.frame_queue.put(frame)    # Add new frame
                 except:
                     pass
                     
     def read(self):
-        """Citeste ultimul frame disponibil"""
+        """Reads the latest available frame"""
         if not self.frame_queue.empty():
             return True, self.frame_queue.get()
         return False, None
         
     def stop(self):
-        """Opreste captura video"""
+        """Stops video capture"""
         self.stopped = True
         if hasattr(self, 'thread'):
             self.thread.join()
@@ -116,28 +116,28 @@ class ThreadedCamera:
             self.cap.release()
 
 def setup_torch_optimizations():
-    """Configureaza optimizarile PyTorch pentru Jetson"""
+    """Configure PyTorch optimizations for Jetson"""
     if torch.cuda.is_available():
-        print(f"CUDA disponibil: {torch.cuda.get_device_name()}")
+        print(f"CUDA available: {torch.cuda.get_device_name()}")
         torch.backends.cudnn.benchmark = True
         torch.backends.cudnn.deterministic = False
-        # Optimizare memorie
+        # Memory optimization
         torch.cuda.empty_cache()
     else:
-        print("CUDA nu este disponibil, folosesc CPU")
+        print("CUDA not available, using CPU")
 
 def main():
-    # Configureaza optimizarile
+    # Configure optimizations
     setup_torch_optimizations()
     
-    # Cauta modele disponibile (in ordine de preferinta pentru performanta)
+    # Look for available models (in order of preference for performance)
     model_candidates = [
-        "yolov8n.pt",           # Nano - cel mai rapid
+        "yolov8n.pt",           # Nano - fastest
         "yolov10n.pt",          # YOLOv10 nano
         "yolov5n.pt",           # YOLOv5 nano
         "yolov8s.pt",           # Small
-        "yolov10n_trained.pt",  # Model antrenat custom
-        "yolov10b_trained.pt"   # Model antrenat custom
+        "yolov10n_trained.pt",  # Custom trained model
+        "yolov10b_trained.pt"   # Custom trained model
     ]
     
     model_path = None
@@ -147,56 +147,54 @@ def main():
             break
     
     if not model_path:
-        print(f"Eroare: Niciun model YOLO gasit din lista: {model_candidates}")
+        print(f"Error: No YOLO model found from list: {model_candidates}")
         print("Downloading yolov8n.pt...")
         model_path = "yolov8n.pt"
     
-    print(f"Incarc modelul YOLO din {model_path}...")
+    print(f"Loading YOLO model from {model_path}...")
     try:
-        # Incarca modelul cu optimizari
+        # Load model with optimizations
         model = YOLO(model_path)
         
-        # Configureaza device-ul (CUDA daca e disponibil)
-        if torch.cuda.is_available():
-            model.to('cuda')
-            print("Model incarcat pe GPU (CUDA)")
-        else:
-            print("Model incarcat pe CPU")
+        # Configure device (CUDA if available)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        model.to(device)
+        print(f"Model loaded on {device.upper()}")
             
-        print("Model YOLO incarcat cu succes!")
+        print("YOLO model loaded successfully!")
     except Exception as e:
-        print(f"Eroare la incarcarea modelului YOLO: {e}")
+        print(f"Error loading YOLO model: {e}")
         return
     
-    # Configureaza camera cu rezolutie redusa pentru performanta
-    camera_width = 640   # Redus de la default pentru performanta
-    camera_height = 480  # Redus de la default pentru performanta
+    # Configure camera with reduced resolution for performance
+    camera_width = 640   # Reduced from default for performance
+    camera_height = 480  # Reduced from default for performance
     camera_fps = 30
     
-    print(f"Initializez camera cu rezolutia {camera_width}x{camera_height} @ {camera_fps}fps...")
+    print(f"Initializing camera with resolution {camera_width}x{camera_height} @ {camera_fps}fps...")
     
     try:
         camera = ThreadedCamera(src=0, width=camera_width, height=camera_height, fps=camera_fps)
         camera.start()
-        print("Camera pornita cu succes!")
+        print("Camera started successfully!")
     except Exception as e:
-        print(f"Eroare la pornirea camerei: {e}")
+        print(f"Error starting camera: {e}")
         return
     
-    # Variabile pentru control
+    # Control variables
     colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
     detection_enabled = True
     show_confidence = True
-    window_name = "YOLO Camera Jetson (q/ESC=iesire, s=toggle detectie, r=reset)"
+    window_name = "YOLO Camera Jetson (q/ESC=exit, s=toggle detection, r=reset)"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     
-    # Variabile pentru FPS monitoring
+    # Variables for FPS monitoring
     fps_counter = 0
     fps_start_time = time.time()
     last_inference_time = 0
     
     try:
-        print("Pornesc bucla principala...")
+        print("Starting main loop...")
         while True:
             ret, frame = camera.read()
             if not ret or frame is None:
@@ -208,36 +206,42 @@ def main():
             
             if detection_enabled:
                 try:
-                    # Ruleaza inferenta cu parametri optimizati
+                    # Run inference with optimized parameters
                     inference_start = time.time()
                     results = model(
                         display_frame, 
                         verbose=False, 
-                        conf=0.5,           # Confidence threshold
-                        iou=0.45,           # IoU threshold pentru NMS
-                        imgsz=416,          # Rezolutie redusa pentru inferenta
-                        half=True,          # FP16 pentru performanta pe GPU
-                        device='cuda' if torch.cuda.is_available() else 'cpu'
+                        conf=0.3,           # Lower confidence threshold
+                        iou=0.45,           # IoU threshold for NMS
+                        imgsz=640,          # Use original frame size
+                        device=device
                     )
                     inference_time = time.time() - inference_start
                     last_inference_time = inference_time
                     
+                    # Process detections
                     for result in results:
                         boxes = result.boxes
-                        if boxes is not None:
+                        if boxes is not None and len(boxes) > 0:
                             for box in boxes:
-                                class_id = int(box.cls[0].cpu().numpy())
-                                class_name = model.names[class_id] if class_id < len(model.names) else f"Class_{class_id}"
-                                
-                                # Afiseaza doar sticle (bottle)
-                                if class_name.lower() != "bottle":
-                                    continue
-                                
+                                # Get detection data
                                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
-                                confidence = box.conf[0].cpu().numpy()
+                                confidence = float(box.conf[0].cpu().numpy())
+                                class_id = int(box.cls[0].cpu().numpy())
+                                
+                                # Get class name
+                                if hasattr(model, 'names') and class_id < len(model.names):
+                                    class_name = model.names[class_id]
+                                else:
+                                    class_name = f"Class_{class_id}"
+                                
+                                # Filter for bottles only (comment out to show all detections)
+                                # if class_name.lower() != "bottle":
+                                #     continue
+                                
                                 color = colors[class_id % len(colors)]
 
-                                # Calculeaza centrul imaginii si al sticlei
+                                # Calculate center of image and bottle
                                 img_h, img_w = display_frame.shape[:2]
                                 img_cx, img_cy = img_w // 2, img_h // 2
                                 box_cx = (x1 + x2) // 2
@@ -246,21 +250,22 @@ def main():
                                 move_x = box_cx - img_cx
                                 move_y = box_cy - img_cy
                                 
+                                # Print movement commands
                                 if abs(move_x) > threshold:
                                     if move_x < 0:
-                                        print("Muta camera la STANGA")
+                                        print("Move camera LEFT")
                                     else:
-                                        print("Muta camera la DREAPTA")
+                                        print("Move camera RIGHT")
                                 if abs(move_y) > threshold:
                                     if move_y < 0:
-                                        print("Muta camera in SUS")
+                                        print("Move camera UP")
                                     else:
-                                        print("Muta camera in JOS")
+                                        print("Move camera DOWN")
 
-                                # Deseneaza bounding box
+                                # Draw bounding box
                                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
                                 
-                                # Adauga label cu confidence
+                                # Add label with confidence
                                 if show_confidence:
                                     label = f"{class_name}: {confidence:.2f}"
                                 else:
@@ -271,16 +276,16 @@ def main():
                                 cv2.putText(display_frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
                                 
                 except Exception as e:
-                    print(f"Eroare detectie: {e}")
+                    print(f"Detection error: {e}")
             
-            # Calculeaza si afiseaza FPS
+            # Calculate and display FPS
             fps_counter += 1
             if current_time - fps_start_time >= 1.0:
                 fps = fps_counter / (current_time - fps_start_time)
                 fps_counter = 0
                 fps_start_time = current_time
                 
-                # Afiseaza informatii de performanta
+                # Display performance info
                 fps_text = f"FPS: {fps:.1f}"
                 if last_inference_time > 0:
                     fps_text += f" | Inference: {last_inference_time*1000:.1f}ms"
@@ -289,30 +294,30 @@ def main():
             
             cv2.imshow(window_name, display_frame)
             
-            # Gestioneaza input-ul utilizatorului
+            # Handle user input
             key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == 27:  # q sau ESC
-                print("Iesire...")
+            if key == ord('q') or key == 27:  # q or ESC
+                print("Exiting...")
                 break
             elif key == ord('s'):
                 detection_enabled = not detection_enabled
-                print(f"Detectie {'activata' if detection_enabled else 'dezactivata'}")
+                print(f"Detection {'enabled' if detection_enabled else 'disabled'}")
             elif key == ord('r'):
-                print("Resetare camera...")
+                print("Resetting camera...")
                 camera.stop()
                 time.sleep(0.5)
                 camera = ThreadedCamera(src=0, width=camera_width, height=camera_height, fps=camera_fps)
                 camera.start()
-                print("Camera resetata!")
+                print("Camera reset!")
                 
     except KeyboardInterrupt:
-        print("Intrerupt de la tastatura, opresc...")
+        print("Keyboard interrupt, stopping...")
     finally:
         camera.stop()
         cv2.destroyAllWindows()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        print("Camera oprita si resurse eliberate")
+        print("Camera stopped and resources freed")
 
 if __name__ == "__main__":
     main()
