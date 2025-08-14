@@ -30,6 +30,11 @@ from queue import Queue
 from ultralytics import YOLO
 import torch
 
+# ROS2 imports
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+
 class ThreadedCamera:
     """Class for threaded video capture with Jetson optimizations"""
     
@@ -63,7 +68,7 @@ class ThreadedCamera:
         print(f"GStreamer Pipeline: {gst_pipeline}")
         
         self.cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
-        
+        q
         if not self.cap.isOpened():
             print("GStreamer not working, switching to standard OpenCV...")
             self.cap = cv2.VideoCapture(self.src)
@@ -126,10 +131,43 @@ def setup_torch_optimizations():
     else:
         print("CUDA not available, using CPU")
 
+
+# ROS2 Node for command/response
+class ArmCommandNode(Node):
+    def __init__(self):
+        super().__init__('arm_command_node')
+        self.publisher_ = self.create_publisher(String, 'arm_command_topic', 10)
+        self.subscription = self.create_subscription(
+            String,
+            'arm_response_topic',
+            self.listener_callback,
+            10)
+        self.last_response = None
+        self.waiting_for_response = False
+        self.last_command = None
+
+    def send_command(self, msg_str):
+        if not self.waiting_for_response:
+            msg = String()
+            msg.data = msg_str
+            self.publisher_.publish(msg)
+            self.last_command = msg_str
+            self.waiting_for_response = True
+            self.get_logger().info(f"Sent command: {msg_str}")
+
+    def listener_callback(self, msg):
+        self.last_response = msg.data
+        if self.waiting_for_response and self.last_command == msg.data:
+            self.waiting_for_response = False
+
 def main():
     # Configure optimizations
     setup_torch_optimizations()
-    
+
+    # ROS2 init
+    rclpy.init()
+    arm_node = ArmCommandNode()
+
     # Look for available models (in order of preference for performance)
     model_candidates = [
         "yolov8n.pt",           # Nano - fastest
@@ -139,78 +177,81 @@ def main():
         "yolov10n_trained.pt",  # Custom trained model
         "yolov10b_trained.pt"   # Custom trained model
     ]
-    
+
     model_path = None
     for candidate in model_candidates:
         if os.path.exists(candidate):
             model_path = candidate
             break
-    
+
     if not model_path:
         print(f"Error: No YOLO model found from list: {model_candidates}")
         print("Downloading yolov8n.pt...")
         model_path = "yolov8n.pt"
-    
+
     print(f"Loading YOLO model from {model_path}...")
     try:
         # Load model with optimizations
         model = YOLO(model_path)
-        
+
         # Configure device (CUDA if available)
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         model.to(device)
         print(f"Model loaded on {device.upper()}")
-            
+
         print("YOLO model loaded successfully!")
     except Exception as e:
         print(f"Error loading YOLO model: {e}")
+        rclpy.shutdown()
         return
-    
+
     # Configure camera with reduced resolution for performance
     camera_width = 640   # Reduced from default for performance
     camera_height = 480  # Reduced from default for performance
     camera_fps = 30
-    
+
     print(f"Initializing camera with resolution {camera_width}x{camera_height} @ {camera_fps}fps...")
-    
+
     try:
         camera = ThreadedCamera(src=0, width=camera_width, height=camera_height, fps=camera_fps)
         camera.start()
         print("Camera started successfully!")
     except Exception as e:
         print(f"Error starting camera: {e}")
+        rclpy.shutdown()
         return
-    
+
     # Control variables
     colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
     detection_enabled = True
     show_confidence = True
     window_name = "YOLO Camera Jetson (q/ESC=exit, s=toggle detection, r=reset)"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    
+
     # Variables for FPS monitoring
     fps_counter = 0
     fps_start_time = time.time()
     last_inference_time = 0
-    
+
     try:
         print("Starting main loop...")
-        while True:
+        while rclpy.ok():
+            rclpy.spin_once(arm_node, timeout_sec=0.01)
             ret, frame = camera.read()
             if not ret or frame is None:
                 time.sleep(0.01)
                 continue
-                
+
             display_frame = frame.copy()
             current_time = time.time()
-            
+
             if detection_enabled:
                 try:
                     # Run inference with optimized parameters
                     inference_start = time.time()
                     results = model(
-                        display_frame, 
-                        verbose=False, 
+                        display_frame,
+                        verbose=False,
                         conf=0.3,           # Lower confidence threshold
                         iou=0.45,           # IoU threshold for NMS
                         imgsz=640,          # Use original frame size
@@ -218,7 +259,7 @@ def main():
                     )
                     inference_time = time.time() - inference_start
                     last_inference_time = inference_time
-                    
+
                     # Process detections
                     for result in results:
                         boxes = result.boxes
@@ -228,17 +269,17 @@ def main():
                                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
                                 confidence = float(box.conf[0].cpu().numpy())
                                 class_id = int(box.cls[0].cpu().numpy())
-                                
+
                                 # Get class name
                                 if hasattr(model, 'names') and class_id < len(model.names):
                                     class_name = model.names[class_id]
                                 else:
                                     class_name = f"Class_{class_id}"
-                                
+
                                 # Filter for bottles only (comment out to show all detections)
                                 # if class_name.lower() != "bottle":
                                 #     continue
-                                
+
                                 color = colors[class_id % len(colors)]
 
                                 # Calculate center of image and bottle
@@ -249,51 +290,49 @@ def main():
                                 threshold = 30
                                 move_x = box_cx - img_cx
                                 move_y = box_cy - img_cy
-                                
-                                # Print movement commands
+
+                                # ROS2 movement commands
                                 if abs(move_x) > threshold:
                                     if move_x < 0:
-                                        print("Move camera LEFT")
+                                        # LEFT
+                                        arm_node.send_command('<6,0>')
                                     else:
-                                        print("Move camera RIGHT")
-                                if abs(move_y) > threshold:
-                                    if move_y < 0:
-                                        print("Move camera UP")
-                                    else:
-                                        print("Move camera DOWN")
+                                        # RIGHT
+                                        arm_node.send_command('<6,1>')
+                                # (Optional: implement UP/DOWN if needed)
 
                                 # Draw bounding box
                                 cv2.rectangle(display_frame, (x1, y1), (x2, y2), color, 2)
-                                
+
                                 # Add label with confidence
                                 if show_confidence:
                                     label = f"{class_name}: {confidence:.2f}"
                                 else:
                                     label = class_name
-                                
+
                                 (text_width, text_height), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
                                 cv2.rectangle(display_frame, (x1, y1 - text_height - 10), (x1 + text_width, y1), color, -1)
                                 cv2.putText(display_frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                                
+
                 except Exception as e:
                     print(f"Detection error: {e}")
-            
+
             # Calculate and display FPS
             fps_counter += 1
             if current_time - fps_start_time >= 1.0:
                 fps = fps_counter / (current_time - fps_start_time)
                 fps_counter = 0
                 fps_start_time = current_time
-                
+
                 # Display performance info
                 fps_text = f"FPS: {fps:.1f}"
                 if last_inference_time > 0:
                     fps_text += f" | Inference: {last_inference_time*1000:.1f}ms"
-                
+
                 cv2.putText(display_frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
+
             cv2.imshow(window_name, display_frame)
-            
+
             # Handle user input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q') or key == 27:  # q or ESC
@@ -309,7 +348,7 @@ def main():
                 camera = ThreadedCamera(src=0, width=camera_width, height=camera_height, fps=camera_fps)
                 camera.start()
                 print("Camera reset!")
-                
+
     except KeyboardInterrupt:
         print("Keyboard interrupt, stopping...")
     finally:
@@ -317,6 +356,7 @@ def main():
         cv2.destroyAllWindows()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        rclpy.shutdown()
         print("Camera stopped and resources freed")
 
 if __name__ == "__main__":
